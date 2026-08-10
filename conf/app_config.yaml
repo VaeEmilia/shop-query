@@ -35,7 +35,7 @@ embedding:
 
 es:
   host: localhost
-  port: 9200
+  port: 9201
   index_name: data_agent
 
 llm:
