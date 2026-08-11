@@ -26,6 +26,7 @@ import {
   Table2,
   LayoutGrid,
 } from "lucide-react";
+import { ResultTable } from "./ResultTable";
 import { analyzeData, getChartColors, type ChartType, type DataAnalysis } from "../lib/chartTypeDetector";
 import { cn } from "../lib/format";
 
@@ -328,9 +329,7 @@ export function ResultChart({ data, className }: ResultChartProps) {
         {effectiveType === "pie" && <PieChartView analysis={analysis} />}
         {effectiveType === "groupedBar" && <GroupedBarChartView analysis={analysis} />}
         {effectiveType === "table" && (
-          <div className="flex h-[280px] items-center justify-center text-sm text-ink/45">
-            请在下方查看详细表格数据
-          </div>
+          <ResultTable data={data} embedded />
         )}
       </div>
     </section>
