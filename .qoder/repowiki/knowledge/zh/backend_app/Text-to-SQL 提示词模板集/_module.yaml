@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: backend_app/prompt_assets
+title: Text-to-SQL 提示词模板集
+scope:
+    - prompts/
+source_files: []
+depends_on: []
+related_to: []

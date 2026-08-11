@@ -15,11 +15,10 @@ import math
 import uuid
 from typing import Any, List, Optional, Tuple
 
-from loguru import logger
-from redis.asyncio import Redis
-
 from app.conf.app_config import app_config
+from app.core.log import logger
 from app.entities.sql_cache_entry import SQLCacheEntry
+from redis.asyncio import Redis
 
 
 class SQLCacheService:

@@ -13,11 +13,10 @@
 import json
 
 from langchain_huggingface import HuggingFaceEndpointEmbeddings
-from loguru import logger
-
 from app.agent.context import DataAgentContext
 from app.agent.graph import graph
 from app.agent.state import DataAgentState
+from app.core.log import logger
 from app.entities.sql_cache_entry import SQLCacheEntry
 from app.repositories.es.value_es_repository import ValueESRepository
 from app.repositories.mysql.dw.dw_mysql_repository import DWMySQLRepository
