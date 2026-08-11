@@ -103,7 +103,12 @@ class QueryService:
 
         try:
             async for chunk in graph.astream(
-                input=state, context=context, stream_mode="custom"
+                input=state,
+                context=context,
+                stream_mode="custom",
+                # recursion_limit 兜底防止 correct_sql ↔ sql_safety_check 循环无限执行，
+                # 配合 sql_safety_check 节点的 max_retry_count 双保险
+                config={"recursion_limit": 20},
             ):
                 # 在流式过程中尝试捕获最终 SQL 和结果，用于后续缓存
                 if isinstance(chunk, dict):

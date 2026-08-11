@@ -7,8 +7,12 @@
 SQL 生成闭环中的数据库环境读取 SQL 校验和最终查询执行也集中放在这里
 """
 
+import asyncio
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.conf.app_config import app_config
 
 
 class DWMySQLRepository:
@@ -49,6 +53,15 @@ class DWMySQLRepository:
         await self.session.execute(text(sql))
 
     async def run(self, sql: str) -> list[dict]:
-        """执行最终 SQL，并把 SQLAlchemy 行对象转换成前端更易消费的字典列表"""
-        result = await self.session.execute(text(sql))
+        """执行最终 SQL，并把 SQLAlchemy 行对象转换成前端更易消费的字典列表
+
+        超时控制双保险：
+        - execution_options(timeout=) 让 MySQL 生成 SET MAX_EXECUTION_TIME（毫秒，仅对 SELECT 生效）
+        - asyncio.wait_for 兜底，防止驱动层不生效；比数据库超时多 5 秒让数据库先超时
+        """
+        timeout = app_config.sql_safety.query_timeout
+        result = await asyncio.wait_for(
+            self.session.execute(text(sql), execution_options={"timeout": timeout}),
+            timeout=timeout + 5,
+        )
         return [dict(row) for row in result.mappings().fetchall()]

@@ -24,6 +24,7 @@ from app.agent.nodes.recall_column import recall_column
 from app.agent.nodes.recall_metric import recall_metric
 from app.agent.nodes.recall_value import recall_value
 from app.agent.nodes.run_sql import run_sql
+from app.agent.nodes.sql_safety_check import sql_safety_check
 from app.agent.nodes.validate_sql import validate_sql
 from app.agent.state import DataAgentState
 from app.clients.embedding_client_manager import embedding_client_manager
@@ -33,6 +34,7 @@ from app.clients.mysql_client_manager import (
     meta_mysql_client_manager,
 )
 from app.clients.qdrant_client_manager import qdrant_client_manager
+from app.conf.app_config import app_config
 from app.repositories.es.value_es_repository import ValueESRepository
 from app.repositories.mysql.dw.dw_mysql_repository import DWMySQLRepository
 from app.repositories.mysql.meta.meta_mysql_repository import MetaMySQLRepository
@@ -52,6 +54,7 @@ graph_builder.add_node("filter_metric", filter_metric)
 graph_builder.add_node("filter_table", filter_table)
 graph_builder.add_node("add_extra_context", add_extra_context)
 graph_builder.add_node("generate_sql", generate_sql)
+graph_builder.add_node("sql_safety_check", sql_safety_check)
 graph_builder.add_node("validate_sql", validate_sql)
 graph_builder.add_node("correct_sql", correct_sql)
 graph_builder.add_node("run_sql", run_sql)
@@ -77,18 +80,41 @@ graph_builder.add_edge("merge_retrieved_info", "filter_metric")
 graph_builder.add_edge("filter_table", "add_extra_context")
 graph_builder.add_edge("filter_metric", "add_extra_context")
 graph_builder.add_edge("add_extra_context", "generate_sql")
-graph_builder.add_edge("generate_sql", "validate_sql")
+# 先做静态安全校验（拦截 DDL/DML/危险函数/系统表，注入 LIMIT），再走语法校验
+graph_builder.add_edge("generate_sql", "sql_safety_check")
 
-# SQL 校验通过就直接执行，校验失败则先进入修正节点
+
+def _safety_route(state):
+    """安全校验路由：通过走语法校验，失败且未超限走修正，超限硬失败走 END"""
+    if state["error"] is None:
+        return "validate_sql"
+    if state.get("retry_count", 0) < app_config.sql_safety.max_retry_count:
+        return "correct_sql"
+    return END
+
+
+graph_builder.add_conditional_edges(
+    source="sql_safety_check",
+    path=_safety_route,
+    path_map={
+        "validate_sql": "validate_sql",
+        "correct_sql": "correct_sql",
+        END: END,
+    },
+)
+
+# SQL 语法校验通过就直接执行，校验失败则进入修正节点
 graph_builder.add_conditional_edges(
     source="validate_sql",
     path=lambda state: "run_sql" if state["error"] is None else "correct_sql",
     path_map={"run_sql": "run_sql", "correct_sql": "correct_sql"},
 )
-graph_builder.add_edge("correct_sql", "run_sql")
+# 修正后的 SQL 重新走安全校验，形成 sql_safety_check ↔ correct_sql 重试循环
+graph_builder.add_edge("correct_sql", "sql_safety_check")
 graph_builder.add_edge("run_sql", END)
 
-# 编译后的 graph 是对外使用的 Agent 执行入口
+# recursion_limit 在运行时通过 config 传入（见 QueryService.graph.astream），
+# 配合 max_retry_count 双保险防止 correct_sql ↔ sql_safety_check 循环无限执行
 graph = graph_builder.compile()
 
 # print(graph.get_graph().draw_mermaid())

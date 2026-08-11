@@ -2,7 +2,8 @@
 SQL 修正节点
 
 负责在 SQL 校验失败后，结合原问题 原 SQL 数据库错误和完整上下文做最小必要修正
-只有 validate_sql 写入错误信息时，LangGraph 才会进入这个分支
+sql_safety_check（安全校验）或 validate_sql（语法校验）写入错误信息时都会进入这个分支
+每次修正递增 retry_count，配合 sql_safety_check 的重试上限防止无限循环
 """
 
 import yaml
@@ -32,9 +33,11 @@ async def correct_sql(state: DataAgentState, runtime: Runtime[DataAgentContext])
         db_info = state["db_info"]
         query = state["query"]
 
-        # sql 是待修正的候选 SQL，error 是数据库 explain 返回的具体错误信息
+        # sql 是待修正的候选 SQL，error 是安全校验或数据库 explain 返回的具体错误信息
         sql = state["sql"]
         error = state["error"]
+        # 重试次数递增，由 sql_safety_check 节点判断是否超过上限硬失败
+        retry_count = state.get("retry_count", 0)
 
         prompt = PromptTemplate(
             template=load_prompt("correct_sql"),
@@ -71,7 +74,7 @@ async def correct_sql(state: DataAgentState, runtime: Runtime[DataAgentContext])
 
         logger.info(f"校正后的SQL：{result}")
         writer({"type": "progress", "step": step, "status": "success"})
-        return {"sql": result}
+        return {"sql": result, "retry_count": retry_count + 1}
     except Exception as e:
         logger.error(f"{step} failed: {e}")
         writer({"type": "progress", "step": step, "status": "error"})

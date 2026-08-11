@@ -6,7 +6,7 @@
 就可以按属性方式读取日志 MySQL Qdrant Embedding Elasticsearch 和 LLM 配置
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
@@ -101,6 +101,31 @@ class LLMConfig:
 
 
 @dataclass
+class SqlSafetyConfig:
+    """SQL 安全审计配置
+
+    控制 sql_safety_check 节点和 DWMySQLRepository.run 的查询限制
+    所有字段都有默认值，conf/app_config.yaml 缺失时也能安全回退
+    """
+
+    enabled: bool = True
+    # 自动注入的 LIMIT 上限，已有 LIMIT 超过该值会被下调
+    max_limit: int = 1000
+    # 查询执行超时（秒），数据库层 MAX_EXECUTION_TIME + asyncio.wait_for 双保险
+    query_timeout: int = 30
+    # 显式白名单表名（精确匹配，大小写不敏感）
+    allowed_tables: list[str] = field(default_factory=list)
+    # 表名前缀模式，如 dim_* / fact_* / dwd_* / dws_*
+    allowed_table_patterns: list[str] = field(default_factory=list)
+    # 禁止访问的系统库，命中即拦截（information_schema / mysql / sys / performance_schema）
+    blocked_system_schemas: list[str] = field(default_factory=list)
+    # 禁止的危险函数名（大写存储，审计时函数名统一转大写比较）
+    blocked_functions: list[str] = field(default_factory=list)
+    # correct_sql 最大重试次数，超过后硬失败走 END
+    max_retry_count: int = 3
+
+
+@dataclass
 class AppConfig:
     """项目级总配置入口"""
 
@@ -112,6 +137,7 @@ class AppConfig:
     es: ESConfig
     redis: RedisConfig
     llm: LLMConfig
+    sql_safety: SqlSafetyConfig = field(default_factory=SqlSafetyConfig)
 
 
 # 从当前文件位置回到项目根目录，再定位到 conf/app_config.yaml

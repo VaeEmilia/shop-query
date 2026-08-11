@@ -77,3 +77,5 @@ class DataAgentState(TypedDict):
     sql: str  # 生成或校正后的SQL
 
     error: str  # 校验SQL时出现的错误信息
+
+    retry_count: int  # correct_sql 重试次数，初始 0，超过 max_retry_count 后硬失败走 END
