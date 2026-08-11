@@ -57,3 +57,8 @@ llm:
 # 查询结果自然语言总结开关
 summary:
   enable: true
+
+session:
+  max_sessions: 20
+  history_turns: 4
+  ttl: 604800
