@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "acryl-sqlglot>=25.25.2.dev9",
     "asyncmy>=0.2.11",
     "cryptography>=46.0.7",
     "elasticsearch[async]>=8,<9",

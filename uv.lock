@@ -3,6 +3,15 @@ revision = 3
 requires-python = ">=3.14"
 
 [[package]]
+name = "acryl-sqlglot"
+version = "25.25.2.dev9"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c2/db/3a696a6fd4c1b5f6b938f951a5983e1c971f40a11fa4093a9a4127e1a9e9/acryl_sqlglot-25.25.2.dev9.tar.gz", hash = "sha256:6fee4aec083e61a3614e4ffecaa60419b871d83e33e0642713a60c61f03f48b3", size = 19540016, upload-time = "2024-10-16T21:33:06.264Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/12/7d/326d82d67d902788d38c829aa5834b3a22fff81c15c370f945741424a7c9/acryl_sqlglot-25.25.2.dev9-py3-none-any.whl", hash = "sha256:7ea79b43e48bc08f9102d73f0a3bd05577344913db29353ec7161dfa0067a96b", size = 420199, upload-time = "2024-10-16T21:32:46.159Z" },
+]
+
+[[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1745,6 +1754,7 @@ name = "shopkeeper-agent"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "acryl-sqlglot" },
     { name = "asyncmy" },
     { name = "cryptography" },
     { name = "elasticsearch", extra = ["async"] },
@@ -1775,6 +1785,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "acryl-sqlglot", specifier = ">=25.25.2.dev9" },
     { name = "asyncmy", specifier = ">=0.2.11" },
     { name = "cryptography", specifier = ">=46.0.7" },
     { name = "elasticsearch", extras = ["async"], specifier = ">=8,<9" },
