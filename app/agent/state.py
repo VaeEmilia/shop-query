@@ -80,3 +80,4 @@ class DataAgentState(TypedDict):
 
     sql_result: any  # SQL 执行后的查询结果
     summary: str  # 自然语言总结结果
+    retry_count: int  # correct_sql 重试次数，初始 0，超过 max_retry_count 后硬失败走 END

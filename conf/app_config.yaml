@@ -62,3 +62,36 @@ session:
   max_sessions: 20
   history_turns: 4
   ttl: 604800
+
+sql_safety:
+  enabled: true
+  # 自动注入的 LIMIT 上限，已有 LIMIT 超过该值会被下调
+  max_limit: 1000
+  # 查询执行超时（秒）
+  query_timeout: 30
+  # 显式白名单表名（精确匹配，大小写不敏感），留空则只靠前缀模式
+  allowed_tables: []
+  # 数仓表名前缀模式，匹配 dim_*/fact_*/dwd_*/dws_* 开头的表
+  allowed_table_patterns:
+    - "dim_*"
+    - "fact_*"
+    - "dwd_*"
+    - "dws_*"
+  # 禁止访问的系统库
+  blocked_system_schemas:
+    - "information_schema"
+    - "mysql"
+    - "performance_schema"
+    - "sys"
+  # 禁止的危险函数（大写存储）
+  # 注意 DATABASE() 在 sqlglot 里解析为 CurrentSchema，函数名为 CURRENT_SCHEMA
+  blocked_functions:
+    - "LOAD_FILE"
+    - "SLEEP"
+    - "BENCHMARK"
+    - "USER"
+    - "CURRENT_SCHEMA"
+    - "CURRENT_USER"
+    - "CONNECTION_ID"
+  # correct_sql 最大重试次数
+  max_retry_count: 3
