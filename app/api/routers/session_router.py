@@ -87,6 +87,14 @@ async def get_session_messages(
     messages = []
     for turn in turns:
         turn_dict = turn.to_dict()
+        result_data = turn_dict.get("result")
+        if isinstance(result_data, list):
+            content = f"查询完成，共 {len(result_data)} 行结果"
+        elif result_data is not None:
+            content = "查询完成，已返回结果"
+        else:
+            content = turn.query[:40]
+
         messages.append(
             {
                 "id": f"{turn.created_at}-user",
@@ -99,11 +107,11 @@ async def get_session_messages(
             {
                 "id": f"{turn.created_at}-assistant",
                 "role": "assistant",
-                "content": turn.result_summary or turn.query[:40],
+                "content": content,
                 "createdAt": _to_ts(turn.created_at),
                 "status": "done",
                 "steps": [],
-                "result": turn_dict.get("result"),
+                "result": result_data,
                 "summary": turn.result_summary,
                 "summaryStreaming": False,
             }

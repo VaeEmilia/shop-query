@@ -455,26 +455,6 @@ export default function App() {
               />
             </section>
 
-            <section>
-              <div className="mb-2 flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-[0.16em] text-ink/45">
-                <Lightbulb className="h-3.5 w-3.5" aria-hidden="true" />
-                样例
-              </div>
-              <div className="space-y-2">
-                {examples.map((example) => (
-                  <button
-                    key={example}
-                    type="button"
-                    disabled={isStreaming}
-                    onClick={() => startQuery(example)}
-                    className="w-full border border-ink/10 bg-white/42 px-3 py-3 text-left text-sm leading-5 text-ink/75 transition hover:border-moss/35 hover:bg-white/75 disabled:cursor-not-allowed disabled:opacity-55"
-                  >
-                    {example}
-                  </button>
-                ))}
-              </div>
-            </section>
-
             {/* 缓存统计面板 */}
             {cacheStats && (
               <section className="border border-ink/10 bg-white/55 px-3 py-3">

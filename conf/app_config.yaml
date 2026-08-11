@@ -67,11 +67,6 @@ session:
 summary:
   enable: true
 
-session:
-  max_sessions: 20
-  history_turns: 4
-  ttl: 604800
-
 sql_safety:
   enabled: true
   # 自动注入的 LIMIT 上限，已有 LIMIT 超过该值会被下调
