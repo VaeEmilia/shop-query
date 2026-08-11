@@ -5,6 +5,8 @@
 字段校验和 OpenAPI 文档生成交给 Pydantic 与 FastAPI 完成。
 """
 
+from typing import Optional
+
 from pydantic import BaseModel
 
 
@@ -13,3 +15,5 @@ class QuerySchema(BaseModel):
 
     # 前端请求体中的 query 字段，例如 {"query": "统计华北地区销售额"}
     query: str
+    # 可选的多轮会话 ID，携带时触发问题改写并写入会话历史
+    session_id: Optional[str] = None
