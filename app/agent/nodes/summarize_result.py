@@ -33,7 +33,7 @@ async def summarize_result(state: DataAgentState, runtime: Runtime[DataAgentCont
         logger.debug("[summarize_result] 总结功能未开启，跳过")
         return
 
-    # 2. 没有结果也直接跳过
+    # 2. 没有结果或为空也直接跳过
     sql_result = state.get("sql_result")
     if sql_result is None:
         logger.debug("[summarize_result] sql_result 为空，跳过总结")
@@ -52,7 +52,7 @@ async def summarize_result(state: DataAgentState, runtime: Runtime[DataAgentCont
         output_parser = StrOutputParser()
         chain = prompt | llm | output_parser
 
-        # 3. 流式调用 LLM，边生成边推送 chunk 给前端
+        # 3. 流式调用 LLM，边生成边通过 SSE 推送 chunk 给前端
         summary_chunks: list[str] = []
         input_data = {
             "query": query,
@@ -60,7 +60,7 @@ async def summarize_result(state: DataAgentState, runtime: Runtime[DataAgentCont
             "result": json.dumps(sql_result, ensure_ascii=False, default=str),
         }
 
-        # 先发送 start 事件，让前端准备展示区
+        # 先发送一个 summary_start 事件，让前端清空/准备展示区
         writer({"type": "summary", "status": "start"})
 
         async for chunk in chain.astream(input_data):
@@ -70,7 +70,7 @@ async def summarize_result(state: DataAgentState, runtime: Runtime[DataAgentCont
 
         summary_text = "".join(summary_chunks).strip()
 
-        # 4. 发送完成事件
+        # 4. 发送完成事件，并把完整总结也发一次，方便前端刷新显示
         writer(
             {
                 "type": "summary",
@@ -84,8 +84,9 @@ async def summarize_result(state: DataAgentState, runtime: Runtime[DataAgentCont
         return {"summary": summary_text}
 
     except Exception as e:
-        # 5. 降级处理：总结失败不影响主流程
+        # 5. 降级处理：总结失败不能影响主流程，只记录日志并发送 fail 事件
         logger.warning(f"[summarize_result] 总结失败（降级跳过）: {e}")
         writer({"type": "summary", "status": "error", "message": str(e)})
         writer({"type": "progress", "step": step, "status": "error"})
+        # 不 raise，让图能正常走到 END
         return None

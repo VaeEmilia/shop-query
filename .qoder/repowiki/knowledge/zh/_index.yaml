@@ -1,0 +1,46 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: zh-CN
+branch: main
+nodes_managed: true
+exported_at: "2026-08-10T06:27:44Z"
+modules:
+    backend_app:
+        dir_name: backend_app
+        title: backend_app
+        scope:
+            - app/
+            - conf/
+            - prompts/
+        source_files: []
+        children:
+            - backend_app/prompt_assets
+        depends_on: []
+        related_to: []
+    backend_app/prompt_assets:
+        dir_name: Text-to-SQL 提示词模板集
+        title: Text-to-SQL 提示词模板集
+        scope:
+            - prompts/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    docker_infra:
+        dir_name: 本地开发基础设施容器编排
+        title: 本地开发基础设施容器编排
+        scope:
+            - docker/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    frontend:
+        dir_name: 电商问数智能体前端（React + Vite SSE 聊天界面）
+        title: 电商问数智能体前端（React + Vite SSE 聊天界面）
+        scope:
+            - frontend/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []

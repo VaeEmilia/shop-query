@@ -137,6 +137,7 @@ export default function App() {
           if (message.id !== assistantId) return message;
 
           if (event.type === "progress") {
+            // 缓存命中的特殊文案
             const isCacheHit = event.step === "cache_hit";
             const content =
               event.status === "running"
@@ -187,13 +188,15 @@ export default function App() {
               status: message.result !== undefined ? "done" : message.status,
             };
           }
-
-          return {
-            ...message,
-            status: "error",
-            content: "这次查询没有成功。",
-            error: event.message,
-          };
+          if (event.type === "error") {
+            return {
+              ...message,
+              status: "error",
+              content: "这次查询没有成功。",
+              error: event.message,
+            };
+          }
+          return message;
         }),
       );
     };
