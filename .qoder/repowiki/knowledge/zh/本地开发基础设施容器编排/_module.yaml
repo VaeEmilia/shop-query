@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: docker_infra
+title: 本地开发基础设施容器编排
+scope:
+    - docker/
+source_files: []
+depends_on: []
+related_to: []
