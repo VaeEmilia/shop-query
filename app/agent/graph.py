@@ -9,6 +9,7 @@
 
 import asyncio
 
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.constants import END, START
 from langgraph.graph import StateGraph
 
@@ -41,6 +42,10 @@ from app.repositories.mysql.dw.dw_mysql_repository import DWMySQLRepository
 from app.repositories.mysql.meta.meta_mysql_repository import MetaMySQLRepository
 from app.repositories.qdrant.column_qdrant_repository import ColumnQdrantRepository
 from app.repositories.qdrant.metric_qdrant_repository import MetricQdrantRepository
+
+# 模块级检查点：按 thread_id（即 session_id）保存每轮对话的状态快照，
+# 为多轮对话提供 LangGraph 原生的状态回溯能力。进程内存储，重启后清空。
+memory_saver = MemorySaver()
 
 # StateGraph 声明整张图使用的状态结构和运行时上下文结构
 graph_builder = StateGraph(state_schema=DataAgentState, context_schema=DataAgentContext)
@@ -116,9 +121,9 @@ graph_builder.add_edge("correct_sql", "sql_safety_check")
 graph_builder.add_edge("run_sql", "summarize_result")
 graph_builder.add_edge("summarize_result", END)
 
-# recursion_limit 在运行时通过 config 传入（见 QueryService.graph.astream），
-# 配合 max_retry_count 双保险防止 correct_sql ↔ sql_safety_check 循环无限执行
-graph = graph_builder.compile()
+# 编译后的 graph 是对外使用的 Agent 执行入口；挂载 MemorySaver 后，
+# 调用方需在 config.configurable.thread_id 中传入 session_id 以启用按会话隔离的检查点
+graph = graph_builder.compile(checkpointer=memory_saver)
 
 # print(graph.get_graph().draw_mermaid())
 
@@ -152,7 +157,7 @@ if __name__ == "__main__":
             value_es_repository = ValueESRepository(es_client_manager.client)
 
             # 当前只需要传入原始问题，后续节点会逐步写回召回、过滤和额外上下文结果
-            state = DataAgentState(query="统计华北地区的销售总额")
+            state = DataAgentState(query="统计华北地区的销售总额", session_id=None)
             context = DataAgentContext(
                 column_qdrant_repository=column_qdrant_repository,
                 embedding_client=embedding_client_manager.client,
@@ -162,9 +167,12 @@ if __name__ == "__main__":
                 dw_mysql_repository=dw_mysql_repository,
             )
 
+            # 挂载了 MemorySaver 后必须提供 thread_id，本地调试时使用临时 ID
+            config = {"configurable": {"thread_id": "debug-local"}}
+
             # stream_mode="custom" 会接收各节点通过 runtime.stream_writer 写出的进度信息
             async for chunk in graph.astream(
-                input=state, context=context, stream_mode="custom"
+                input=state, config=config, context=context, stream_mode="custom"
             ):
                 print(chunk)
 

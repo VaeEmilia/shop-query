@@ -26,10 +26,14 @@ async def query_handler(
     # 服务依赖：FastAPI 会调用 get_query_service，递归组装它所需的仓储和客户端
     query_service: Annotated[QueryService, Depends(get_query_service)],
 ):
-    """接收用户自然语言问题，并流式返回 LangGraph 工作流输出"""
+    """接收用户自然语言问题，并流式返回 LangGraph 工作流输出
+
+    请求体携带 session_id 时触发多轮对话：后端先基于会话历史改写追问，
+    再执行工作流，结束后把本轮片段写入会话历史。
+    """
 
     return StreamingResponse(
-        # query.query 是用户问题字符串；QueryService.query 返回异步生成器供响应逐段消费
-        query_service.query(query.query),
+        # query.query 是用户问题字符串，query.session_id 用于多轮上下文回溯
+        query_service.query(query.query, session_id=query.session_id),
         media_type="text/event-stream",
     )

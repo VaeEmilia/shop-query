@@ -63,7 +63,9 @@ class DBInfoState(TypedDict):
 class DataAgentState(TypedDict):
     """一次问数链路中的核心状态"""
 
-    query: str  # 用户输入的查询
+    query: str  # 用户输入的查询（多轮场景下为改写后的完整查询）
+    # 多轮会话 ID，携带时启用上下文改写；首轮或单轮查询时为 None
+    session_id: str | None
     keywords: list[str]  # 抽取的关键词
     retrieved_column_infos: list[ColumnInfo]  # 检索到的字段信息
     retrieved_metric_infos: list[MetricInfo]  # 检索到的指标信息

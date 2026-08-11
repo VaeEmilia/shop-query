@@ -9,6 +9,7 @@ import {
   Eraser,
   History,
   Leaf,
+  Lightbulb,
   MessageSquarePlus,
   Server,
   Zap,
@@ -18,9 +19,28 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Composer } from "./components/Composer";
 import { EmptyState } from "./components/EmptyState";
 import { MessageBubble } from "./components/MessageBubble";
+import { SessionList } from "./components/SessionList";
 import { streamQuery } from "./lib/agentApi";
+import {
+  createSession,
+  deleteSession,
+  getSessionMessages,
+  listSessions,
+  renameSession,
+} from "./lib/sessionApi";
+import {
+  deleteMessages,
+  getCurrentSessionId,
+  loadMessages,
+  loadSessions,
+  saveCurrentSessionId,
+  saveMessages,
+  saveSessions,
+  sortSessions,
+} from "./lib/sessionStorage";
 import { cn, summarizeResult } from "./lib/format";
 import type { AgentEvent, ChatMessage, StepState } from "./types/agent";
+import type { Session } from "./types/session";
 
 const examples = [
   "统计 2025 年第一季度各大区的 GMV，并按 GMV 从高到低排序",
@@ -54,7 +74,13 @@ type CacheStats = {
 };
 
 export default function App() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  // 会话列表与当前会话 ID 优先从 localStorage 恢复，保证刷新后不丢失
+  const [sessions, setSessions] = useState<Session[]>(() => loadSessions());
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(() => getCurrentSessionId());
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    const id = getCurrentSessionId();
+    return id ? loadMessages(id) : [];
+  });
   const [draft, setDraft] = useState("");
   const [activeController, setActiveController] = useState<AbortController | null>(null);
   const [cacheStats, setCacheStats] = useState<CacheStats | null>(null);
@@ -93,6 +119,38 @@ export default function App() {
     });
   }, [messages]);
 
+  // 消息变化时持久化到当前会话的 localStorage，刷新或切回时不丢失
+  useEffect(() => {
+    if (currentSessionId) {
+      saveMessages(currentSessionId, messages);
+    }
+  }, [messages, currentSessionId]);
+
+  // 启动时从后端拉取权威会话列表，与 localStorage 合并
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const remote = sortSessions(await listSessions());
+        if (cancelled) return;
+        setSessions(remote);
+        saveSessions(remote);
+        // 当前会话已过期（后端 TTL 清理）时清空指向
+        if (currentSessionId && !remote.some((s) => s.id === currentSessionId)) {
+          setCurrentSessionId(null);
+          saveCurrentSessionId(null);
+          setMessages([]);
+        }
+      } catch {
+        // 后端不可用时保留 localStorage 中的会话
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const resetCacheStats = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/cache/stats/reset`, { method: "POST" });
@@ -108,6 +166,24 @@ export default function App() {
   const startQuery = async (rawQuery = draft) => {
     const query = rawQuery.trim();
     if (!query || isStreaming) return;
+
+    // 无活跃会话时自动创建，会话名取首条问题前 30 字，避免产生空会话
+    let sessionId = currentSessionId;
+    if (!sessionId) {
+      try {
+        const session = await createSession(query.slice(0, 30));
+        sessionId = session.id;
+        setSessions((prev) => {
+          const next = sortSessions([session, ...prev]);
+          saveSessions(next);
+          return next;
+        });
+        setCurrentSessionId(sessionId);
+        saveCurrentSessionId(sessionId);
+      } catch {
+        // 会话创建失败时降级为单轮查询（不携带 session_id）
+      }
+    }
 
     const userMessage: ChatMessage = {
       id: makeId(),
@@ -131,7 +207,15 @@ export default function App() {
     setDraft("");
     setMessages((current) => [...current, userMessage, assistantMessage]);
 
+    // 在闭包外捕获总结文本，用于查询结束后更新会话列表的 last_summary
+    let capturedSummary = "";
+
     const onEvent = (event: AgentEvent) => {
+      // 同步捕获总结完成文本（不依赖 setMessages 的异步回调）
+      if (event.type === "summary" && event.status === "done") {
+        capturedSummary = event.text;
+      }
+
       setMessages((current) =>
         current.map((message) => {
           if (message.id !== assistantId) return message;
@@ -202,7 +286,7 @@ export default function App() {
     };
 
     try {
-      await streamQuery(query, { signal: controller.signal, onEvent });
+      await streamQuery(query, { signal: controller.signal, onEvent, sessionId });
       setMessages((current) =>
         current.map((message) => {
           if (message.id !== assistantId) return message;
@@ -233,6 +317,21 @@ export default function App() {
       );
     } finally {
       setActiveController(null);
+
+      // 查询结束后更新会话列表的摘要和时间，并按更新时间排序
+      if (sessionId) {
+        const summary = capturedSummary || query.slice(0, 40);
+        setSessions((prev) => {
+          const updated = prev.map((s) =>
+            s.id === sessionId
+              ? { ...s, last_summary: summary, updated_at: new Date().toISOString() }
+              : s,
+          );
+          const sorted = sortSessions(updated);
+          saveSessions(sorted);
+          return sorted;
+        });
+      }
     }
   };
 
@@ -240,6 +339,71 @@ export default function App() {
     activeController?.abort();
   };
 
+  // 新会话：重置当前上下文，不立即创建后端会话（首条查询时按需创建）
+  const handleNewSession = () => {
+    if (isStreaming) return;
+    setCurrentSessionId(null);
+    saveCurrentSessionId(null);
+    setMessages([]);
+    setDraft("");
+  };
+
+  // 切换会话：优先从后端拉取完整历史（含 result），localStorage 作快速降级
+  const handleSelectSession = async (sessionId: string) => {
+    if (isStreaming) return;
+    setCurrentSessionId(sessionId);
+    saveCurrentSessionId(sessionId);
+    // 先显示 localStorage 缓存的旧数据，用户无感知
+    const cached = loadMessages(sessionId);
+    setMessages(cached);
+    // 异步从后端拉取权威数据（包含完整 result）
+    try {
+      const remote = await getSessionMessages(sessionId);
+      if (remote.length > 0) {
+        setMessages(remote);
+        saveMessages(sessionId, remote);
+      }
+    } catch {
+      // 后端不可用时保留 localStorage 缓存的旧数据
+    }
+  };
+
+  // 重命名会话：调用后端 PATCH 接口并同步本地列表，保持排序
+  const handleRenameSession = async (sessionId: string, name: string) => {
+    try {
+      const updated = await renameSession(sessionId, name);
+      setSessions((prev) => {
+        const next = prev.map((s) => (s.id === sessionId ? updated : s));
+        const sorted = sortSessions(next);
+        saveSessions(sorted);
+        return sorted;
+      });
+    } catch {
+      // 重命名失败时静默保留原名
+    }
+  };
+
+  // 删除会话：清理后端记录和本地缓存，若删的是当前会话则回到空白态
+  const handleDeleteSession = async (sessionId: string) => {
+    try {
+      await deleteSession(sessionId);
+    } catch {
+      // 后端删除失败也清理本地，保证 UI 一致
+    }
+    deleteMessages(sessionId);
+    setSessions((prev) => {
+      const next = sortSessions(prev.filter((s) => s.id !== sessionId));
+      saveSessions(next);
+      return next;
+    });
+    if (currentSessionId === sessionId) {
+      setCurrentSessionId(null);
+      saveCurrentSessionId(null);
+      setMessages([]);
+    }
+  };
+
+  // 清空当前会话的消息显示（保留会话本身）
   const clearConversation = () => {
     if (isStreaming) return;
     setMessages([]);
@@ -268,7 +432,7 @@ export default function App() {
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4">
             <button
               type="button"
-              onClick={clearConversation}
+              onClick={handleNewSession}
               disabled={isStreaming}
               className="flex h-11 w-full items-center justify-center gap-2 bg-ink text-sm font-semibold text-parchment transition hover:bg-soot disabled:cursor-not-allowed disabled:bg-ink/35"
             >
@@ -279,6 +443,21 @@ export default function App() {
             <section>
               <div className="mb-2 flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-[0.16em] text-ink/45">
                 <History className="h-3.5 w-3.5" aria-hidden="true" />
+                会话
+              </div>
+              <SessionList
+                sessions={sessions}
+                currentSessionId={currentSessionId}
+                disabled={isStreaming}
+                onSelect={handleSelectSession}
+                onRename={handleRenameSession}
+                onDelete={handleDeleteSession}
+              />
+            </section>
+
+            <section>
+              <div className="mb-2 flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-[0.16em] text-ink/45">
+                <Lightbulb className="h-3.5 w-3.5" aria-hidden="true" />
                 样例
               </div>
               <div className="space-y-2">

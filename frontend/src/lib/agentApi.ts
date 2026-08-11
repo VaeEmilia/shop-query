@@ -9,6 +9,8 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? ""
 type QueryOptions = {
   signal?: AbortSignal;
   onEvent: (event: AgentEvent) => void;
+  /** 多轮会话 ID，携带时后端会基于历史改写追问 */
+  sessionId?: string | null;
 };
 
 export async function streamQuery(query: string, options: QueryOptions) {
@@ -18,7 +20,7 @@ export async function streamQuery(query: string, options: QueryOptions) {
       "Content-Type": "application/json",
       Accept: "text/event-stream",
     },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query, session_id: options.sessionId ?? null }),
     signal: options.signal,
   });
 
