@@ -2,6 +2,7 @@
  * 会话管理接口客户端
  * 封装后端 /api/sessions CRUD 接口请求
  */
+import type { ChatMessage } from "../types/agent";
 import type { Session } from "../types/session";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
@@ -56,4 +57,9 @@ export async function deleteSession(sessionId: string): Promise<void> {
   await request<void>(`${API_BASE_URL}/api/sessions/${sessionId}`, {
     method: "DELETE",
   });
+}
+
+/** 获取指定会话的完整对话历史（含 result 数据，供切换会话时恢复渲染） */
+export async function getSessionMessages(sessionId: string): Promise<ChatMessage[]> {
+  return request<ChatMessage[]>(`${API_BASE_URL}/api/sessions/${sessionId}/messages`);
 }

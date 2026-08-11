@@ -3,7 +3,6 @@
  * 组合展示用户问题、智能体回复、执行流程、自然语言总结和结果表格
  */
 import { Bot, Copy, Sparkles, UserRound, Zap } from "lucide-react";
-import { ResultChart } from "./ResultChart";
 import { ResultTable } from "./ResultTable";
 import { StepRail } from "./StepRail";
 import { cn, formatTime, toClipboardText } from "../lib/format";
@@ -85,7 +84,6 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
             </div>
           )}
 
-          {!isUser && message.result !== undefined && <ResultChart data={message.result} />}
           {!isUser && message.result !== undefined && <ResultTable data={message.result} />}
 
           <div

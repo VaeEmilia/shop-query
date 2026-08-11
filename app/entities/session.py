@@ -12,7 +12,11 @@ from typing import Any, Dict, Optional
 
 @dataclass
 class SessionTurn:
-    """一轮对话片段，包含用户问题、改写后的问题、生成的 SQL 和结果摘要"""
+    """一轮对话片段，包含用户问题、改写后的问题、生成的 SQL 和结果摘要
+
+    result 字段存储完整查询结果（列表/字典），用于前端切换会话时恢复表格渲染。
+    为防止数据量过大，序列化时会对 result 的条目数做裁剪。
+    """
 
     # 用户原始输入（追问时可能是简短的上下文依赖语句）
     query: str
@@ -22,15 +26,24 @@ class SessionTurn:
     sql: Optional[str] = None
     # 结果摘要，用于后续轮次改写时提供上下文
     result_summary: Optional[str] = None
+    # 完整查询结果，供前端渲染表格；超过 200 行时裁剪避免 Redis 膨胀
+    result: Optional[Any] = None
     # 该轮创建时间
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
+    # result 存储时的最大行数上限
+    RESULT_MAX_ROWS = 200
+
     def to_dict(self) -> Dict[str, Any]:
+        serialized_result = self.result
+        if isinstance(serialized_result, list) and len(serialized_result) > self.RESULT_MAX_ROWS:
+            serialized_result = serialized_result[: self.RESULT_MAX_ROWS]
         return {
             "query": self.query,
             "rewritten_query": self.rewritten_query,
             "sql": self.sql,
             "result_summary": self.result_summary,
+            "result": serialized_result,
             "created_at": self.created_at,
         }
 
@@ -41,6 +54,7 @@ class SessionTurn:
             rewritten_query=data.get("rewritten_query", ""),
             sql=data.get("sql"),
             result_summary=data.get("result_summary"),
+            result=data.get("result"),
             created_at=data.get("created_at", datetime.now().isoformat()),
         )
 

@@ -7,7 +7,8 @@ FastAPI 依赖组装
 
 新增：
   - get_sql_cache_service：注入 Redis 缓存服务
-  - get_query_service：现在额外接收 SQLCacheService
+  - get_session_service：注入多轮会话管理服务
+  - get_query_service：现在额外接收 SQLCacheService 和 SessionService
 """
 
 from typing import Annotated
@@ -27,9 +28,11 @@ from app.clients.redis_client_manager import redis_client_manager
 from app.repositories.es.value_es_repository import ValueESRepository
 from app.repositories.mysql.dw.dw_mysql_repository import DWMySQLRepository
 from app.repositories.mysql.meta.meta_mysql_repository import MetaMySQLRepository
+from app.repositories.mysql.meta.session_mysql_repository import SessionMySQLRepository
 from app.repositories.qdrant.column_qdrant_repository import ColumnQdrantRepository
 from app.repositories.qdrant.metric_qdrant_repository import MetricQdrantRepository
 from app.services.query_service import QueryService
+from app.services.session_service import SessionService
 from app.services.sql_cache_service import SQLCacheService
 
 
@@ -93,6 +96,15 @@ async def get_sql_cache_service() -> SQLCacheService:
     return SQLCacheService(redis_client_manager.client)
 
 
+async def get_session_service(
+    session: Annotated[AsyncSession, Depends(get_meta_session)],
+) -> SessionService:
+    """创建多轮会话管理服务，基于 Meta MySQL 持久化"""
+
+    repository = SessionMySQLRepository(session)
+    return SessionService(repository)
+
+
 async def get_query_service(
     meta_mysql_repository: Annotated[
         MetaMySQLRepository, Depends(get_meta_mysql_repository)
@@ -109,8 +121,9 @@ async def get_query_service(
     ],
     value_es_repository: Annotated[ValueESRepository, Depends(get_value_es_repository)],
     sql_cache_service: Annotated[SQLCacheService, Depends(get_sql_cache_service)],
+    session_service: Annotated[SessionService, Depends(get_session_service)],
 ) -> QueryService:
-    """组装一次查询所需的业务服务（含缓存层）"""
+    """组装一次查询所需的业务服务（含缓存层和多轮会话上下文）"""
 
     return QueryService(
         meta_mysql_repository=meta_mysql_repository,
@@ -120,4 +133,5 @@ async def get_query_service(
         metric_qdrant_repository=metric_qdrant_repository,
         value_es_repository=value_es_repository,
         sql_cache_service=sql_cache_service,
+        session_service=session_service,
     )

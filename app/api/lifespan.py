@@ -18,6 +18,9 @@ from app.clients.mysql_client_manager import (
 )
 from app.clients.qdrant_client_manager import qdrant_client_manager
 from app.clients.redis_client_manager import redis_client_manager
+from app.models.base import Base
+from app.models.session import SessionMySQL  # noqa: F401
+from app.models.session_turn import SessionTurnMySQL  # noqa: F401
 
 
 @asynccontextmanager
@@ -31,6 +34,10 @@ async def lifespan(app: FastAPI):
     meta_mysql_client_manager.init()
     dw_mysql_client_manager.init()
     redis_client_manager.init()
+
+    # 自动创建会话相关的数据表（仅在不存在时创建，已有表不受影响）
+    async with meta_mysql_client_manager.engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
     # yield 之前是启动逻辑，yield 之后是关闭逻辑；中间阶段由 FastAPI 正常处理请求
     yield

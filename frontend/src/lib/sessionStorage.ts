@@ -3,6 +3,7 @@
  * 使用 localStorage 缓存当前会话 ID 和会话列表元数据，
  * 确保页面刷新后不丢失会话上下文。
  */
+import type { ChatMessage } from "../types/agent";
 import type { Session } from "../types/session";
 
 const CURRENT_SESSION_KEY = "shop_query:current_session_id";
@@ -41,37 +42,41 @@ export function loadSessions(): Session[] {
   }
 }
 
-/** 持久化会话列表 */
+/** 按 updated_at 降序排列会话列表（最近修改的排在最前） */
+export function sortSessions(sessions: Session[]): Session[] {
+  return [...sessions].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+}
+
+/** 持久化会话列表（会自动按更新时间排序后截断到 20 条） */
 export function saveSessions(sessions: Session[]): void {
   try {
-    // 最多保留 20 条，避免 localStorage 溢出
-    localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions.slice(0, 20)));
+    const sorted = sortSessions(sessions);
+    localStorage.setItem(SESSIONS_KEY, JSON.stringify(sorted.slice(0, 20)));
   } catch {
     // 静默降级
   }
 }
 
 /** 读取指定会话的消息列表 */
-export function loadMessages(sessionId: string): ChatMessageStore[] {
+export function loadMessages(sessionId: string): ChatMessage[] {
   try {
     const raw = localStorage.getItem(MESSAGES_PREFIX + sessionId);
-    return raw ? (JSON.parse(raw) as ChatMessageStore[]) : [];
+    if (!raw) return [];
+    return JSON.parse(raw) as ChatMessage[];
   } catch {
     return [];
   }
 }
 
-/** 持久化指定会话的消息列表（仅保留最近 50 条，裁剪大体积 result） */
-export function saveMessages(sessionId: string, messages: ChatMessageStore[]): void {
+/** 持久化指定会话的消息列表（保留最近 50 条，包含完整 result 数据）
+ * 若 localStorage 配额超限导致写入失败，会静默降级——
+ * 此时消息仅在内存中存在，刷新后丢失，属可接受的降级行为。 */
+export function saveMessages(sessionId: string, messages: ChatMessage[]): void {
   try {
-    const trimmed = messages.slice(-50).map((m) => ({
-      ...m,
-      // result 可能很大，存储时只保留摘要信息
-      result: m.result ? "<stored>" : undefined,
-    }));
+    const trimmed = messages.slice(-50);
     localStorage.setItem(MESSAGES_PREFIX + sessionId, JSON.stringify(trimmed));
   } catch {
-    // 静默降级
+    // 静默降级：配额超限或其他存储异常时不阻断主流程
   }
 }
 
@@ -83,16 +88,3 @@ export function deleteMessages(sessionId: string): void {
     // 静默降级
   }
 }
-
-/** 简化版 ChatMessage，用于本地存储 */
-export type ChatMessageStore = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  createdAt: number;
-  status?: "streaming" | "done" | "error";
-  steps?: { step: string; status: string; updatedAt: number }[];
-  error?: string;
-  cached?: boolean;
-  result?: unknown;
-};
