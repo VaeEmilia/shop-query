@@ -1,8 +1,8 @@
 /**
  * 聊天消息气泡组件
- * 组合展示用户问题、智能体回复、执行流程和结果表格
+ * 组合展示用户问题、智能体回复、执行流程、自然语言总结和结果表格
  */
-import { Bot, Copy, UserRound, Zap } from "lucide-react";
+import { Bot, Copy, Sparkles, UserRound, Zap } from "lucide-react";
 import { ResultChart } from "./ResultChart";
 import { StepRail } from "./StepRail";
 import { cn, formatTime, toClipboardText } from "../lib/format";
@@ -10,6 +10,7 @@ import type { ChatMessage } from "../types/agent";
 
 export function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
+  const hasSummary = Boolean(message.summary) || message.summaryStreaming;
 
   const copy = async () => {
     const text = message.result ? toClipboardText(message.result) : message.content;
@@ -63,6 +64,26 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
           )}
 
           {!isUser && !message.cached && <StepRail steps={message.steps} />}
+
+          {/* 自然语言总结：放在结果图表/表格上方，流式展示 */}
+          {!isUser && hasSummary && (
+            <div className="mt-4 rounded-lg border border-moss/25 bg-moss/8 px-4 py-3">
+              <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-moss/85">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                智能总结
+                {message.summaryStreaming && (
+                  <span className="ml-1 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-moss align-middle" />
+                )}
+              </div>
+              <p className="whitespace-pre-wrap text-[14.5px] leading-7 text-ink/90">
+                {message.summary}
+                {message.summaryStreaming && (
+                  <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-[3px] animate-pulse bg-ink/50 align-middle" />
+                )}
+              </p>
+            </div>
+          )}
+
           {!isUser && message.result !== undefined && <ResultChart data={message.result} />}
 
           <div

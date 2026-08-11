@@ -24,6 +24,7 @@ from app.agent.nodes.recall_column import recall_column
 from app.agent.nodes.recall_metric import recall_metric
 from app.agent.nodes.recall_value import recall_value
 from app.agent.nodes.run_sql import run_sql
+from app.agent.nodes.summarize_result import summarize_result
 from app.agent.nodes.validate_sql import validate_sql
 from app.agent.state import DataAgentState
 from app.clients.embedding_client_manager import embedding_client_manager
@@ -55,6 +56,7 @@ graph_builder.add_node("generate_sql", generate_sql)
 graph_builder.add_node("validate_sql", validate_sql)
 graph_builder.add_node("correct_sql", correct_sql)
 graph_builder.add_node("run_sql", run_sql)
+graph_builder.add_node("summarize_result", summarize_result)
 
 # 从用户问题开始，先抽取关键词作为后续检索的基础
 graph_builder.add_edge(START, "extract_keywords")
@@ -86,7 +88,8 @@ graph_builder.add_conditional_edges(
     path_map={"run_sql": "run_sql", "correct_sql": "correct_sql"},
 )
 graph_builder.add_edge("correct_sql", "run_sql")
-graph_builder.add_edge("run_sql", END)
+graph_builder.add_edge("run_sql", "summarize_result")
+graph_builder.add_edge("summarize_result", END)
 
 # 编译后的 graph 是对外使用的 Agent 执行入口
 graph = graph_builder.compile()
