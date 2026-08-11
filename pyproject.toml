@@ -21,6 +21,7 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "pyyaml>=6.0.3",
     "qdrant-client>=1.17.1",
+    "redis[hiredis]>=5.2.1",
     "sqlalchemy>=2.0.49",
 ]
 

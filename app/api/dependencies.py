@@ -4,6 +4,10 @@ FastAPI 依赖组装
 集中声明 API 层需要的依赖函数，把 Session、Repository、Client 和 Service
 按职责组装起来。路由层只通过 Depends 声明自己需要什么对象，具体创建细节
 都收敛在这里，避免 HTTP 处理函数直接感知底层基础设施。
+
+新增：
+  - get_sql_cache_service：注入 Redis 缓存服务
+  - get_query_service：现在额外接收 SQLCacheService
 """
 
 from typing import Annotated
@@ -19,18 +23,19 @@ from app.clients.mysql_client_manager import (
     meta_mysql_client_manager,
 )
 from app.clients.qdrant_client_manager import qdrant_client_manager
+from app.clients.redis_client_manager import redis_client_manager
 from app.repositories.es.value_es_repository import ValueESRepository
 from app.repositories.mysql.dw.dw_mysql_repository import DWMySQLRepository
 from app.repositories.mysql.meta.meta_mysql_repository import MetaMySQLRepository
 from app.repositories.qdrant.column_qdrant_repository import ColumnQdrantRepository
 from app.repositories.qdrant.metric_qdrant_repository import MetricQdrantRepository
 from app.services.query_service import QueryService
+from app.services.sql_cache_service import SQLCacheService
 
 
 async def get_meta_session():
     """创建一次请求内使用的元数据库 Session"""
 
-    # yield 之后的清理逻辑由 async with 负责，FastAPI 会在请求结束后继续执行退出流程
     async with meta_mysql_client_manager.session_factory() as meta_session:
         yield meta_session
 
@@ -82,6 +87,12 @@ async def get_value_es_repository() -> ValueESRepository:
     return ValueESRepository(es_client_manager.client)
 
 
+async def get_sql_cache_service() -> SQLCacheService:
+    """创建 SQL 缓存服务"""
+
+    return SQLCacheService(redis_client_manager.client)
+
+
 async def get_query_service(
     meta_mysql_repository: Annotated[
         MetaMySQLRepository, Depends(get_meta_mysql_repository)
@@ -97,10 +108,10 @@ async def get_query_service(
         MetricQdrantRepository, Depends(get_metric_qdrant_repository)
     ],
     value_es_repository: Annotated[ValueESRepository, Depends(get_value_es_repository)],
+    sql_cache_service: Annotated[SQLCacheService, Depends(get_sql_cache_service)],
 ) -> QueryService:
-    """组装一次查询所需的业务服务"""
+    """组装一次查询所需的业务服务（含缓存层）"""
 
-    # QueryService 只接收已经创建好的依赖对象，本身不关心这些对象来自 MySQL、Qdrant 还是 ES
     return QueryService(
         meta_mysql_repository=meta_mysql_repository,
         embedding_client=embedding_client,
@@ -108,4 +119,5 @@ async def get_query_service(
         column_qdrant_repository=column_qdrant_repository,
         metric_qdrant_repository=metric_qdrant_repository,
         value_es_repository=value_es_repository,
+        sql_cache_service=sql_cache_service,
     )

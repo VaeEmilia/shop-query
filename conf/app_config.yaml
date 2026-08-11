@@ -38,6 +38,16 @@ es:
   port: 9201
   index_name: data_agent
 
+redis:
+  host: localhost
+  port: 6379
+  db: 0
+  # password: null
+  # 缓存过期时间（秒）
+  ttl: 86400
+  # 向量相似度阈值（0.0 ~ 1.0，余弦相似度）
+  similarity_threshold: 0.92
+
 llm:
   model_name: deepseek-v4-flash
   api_key: ${oc.env:LLM_API_KEY}

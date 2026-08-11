@@ -1,6 +1,7 @@
 /**
  * 前端应用主组件
  * 负责聊天会话状态、SSE 事件消费和整体页面布局
+ * 新增：缓存统计面板、缓存命中标识
  */
 import {
   Activity,
@@ -10,8 +11,10 @@ import {
   Leaf,
   MessageSquarePlus,
   Server,
+  Zap,
+  RotateCcw,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Composer } from "./components/Composer";
 import { EmptyState } from "./components/EmptyState";
 import { MessageBubble } from "./components/MessageBubble";
@@ -26,7 +29,7 @@ const examples = [
   "按会员等级统计 2025 年第一季度的订单数和销售额",
 ];
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "Vite /api proxy";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
 
 function makeId() {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -42,10 +45,19 @@ function upsertStep(steps: StepState[] = [], event: Extract<AgentEvent, { type: 
   return next;
 }
 
+type CacheStats = {
+  hit: number;
+  miss: number;
+  total: number;
+  hit_rate: number;
+  cache_count: number;
+};
+
 export default function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [activeController, setActiveController] = useState<AbortController | null>(null);
+  const [cacheStats, setCacheStats] = useState<CacheStats | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const isStreaming = Boolean(activeController);
@@ -56,12 +68,42 @@ export default function App() {
     [messages],
   );
 
+  // 轮询缓存统计
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/cache/stats`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data) setCacheStats(json.data);
+        }
+      } catch {
+        // 静默失败，不干扰主流程
+      }
+    };
+    fetchStats();
+    const timer = setInterval(fetchStats, 5000);
+    return () => clearInterval(timer);
+  }, [messages]);
+
   useEffect(() => {
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
       behavior: "smooth",
     });
   }, [messages]);
+
+  const resetCacheStats = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/cache/stats/reset`, { method: "POST" });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data) setCacheStats(json.data);
+      }
+    } catch {
+      // 静默失败
+    }
+  }, []);
 
   const startQuery = async (rawQuery = draft) => {
     const query = rawQuery.trim();
@@ -95,10 +137,20 @@ export default function App() {
           if (message.id !== assistantId) return message;
 
           if (event.type === "progress") {
+            // 缓存命中的特殊文案
+            const isCacheHit = event.step === "cache_hit";
+            const content =
+              event.status === "running"
+                ? isCacheHit
+                  ? "命中相似问题缓存，直接返回结果..."
+                  : `正在执行：${event.step}`
+                : message.content;
+
             return {
               ...message,
-              content: event.status === "running" ? `正在执行：${event.step}` : message.content,
+              content,
               steps: upsertStep(message.steps, event),
+              cached: isCacheHit ? true : message.cached,
             };
           }
 
@@ -208,6 +260,46 @@ export default function App() {
                 ))}
               </div>
             </section>
+
+            {/* 缓存统计面板 */}
+            {cacheStats && (
+              <section className="border border-ink/10 bg-white/55 px-3 py-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-ink/45">
+                    <Zap className="h-3.5 w-3.5" aria-hidden="true" />
+                    SQL 缓存
+                  </div>
+                  <button
+                    type="button"
+                    onClick={resetCacheStats}
+                    className="rounded p-1 text-ink/35 transition hover:bg-ink/5 hover:text-ink"
+                    title="重置统计"
+                  >
+                    <RotateCcw className="h-3 w-3" aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded bg-white/70 px-2 py-1.5">
+                    <div className="text-ink/45">命中率</div>
+                    <div className="text-lg font-semibold text-moss">
+                      {(cacheStats.hit_rate * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                  <div className="rounded bg-white/70 px-2 py-1.5">
+                    <div className="text-ink/45">缓存条数</div>
+                    <div className="text-lg font-semibold text-ink">{cacheStats.cache_count}</div>
+                  </div>
+                  <div className="rounded bg-white/70 px-2 py-1.5">
+                    <div className="text-ink/45">命中</div>
+                    <div className="font-semibold text-moss">{cacheStats.hit}</div>
+                  </div>
+                  <div className="rounded bg-white/70 px-2 py-1.5">
+                    <div className="text-ink/45">未命中</div>
+                    <div className="font-semibold text-ink/75">{cacheStats.miss}</div>
+                  </div>
+                </div>
+              </section>
+            )}
           </div>
 
           <div className="border-t border-ink/10 p-4">

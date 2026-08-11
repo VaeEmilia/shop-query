@@ -2,7 +2,7 @@
  * 聊天消息气泡组件
  * 组合展示用户问题、智能体回复、执行流程和结果表格
  */
-import { Bot, Copy, UserRound } from "lucide-react";
+import { Bot, Copy, UserRound, Zap } from "lucide-react";
 import { ResultTable } from "./ResultTable";
 import { StepRail } from "./StepRail";
 import { cn, formatTime, toClipboardText } from "../lib/format";
@@ -35,17 +35,25 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
         >
           <div className="flex items-start justify-between gap-3">
             <p className="whitespace-pre-wrap text-[15px] leading-7">{message.content}</p>
-            {!isUser && message.status !== "streaming" && (
-              <button
-                type="button"
-                onClick={copy}
-                className="shrink-0 rounded-full p-1.5 text-ink/45 opacity-0 outline-none transition hover:bg-ink/5 hover:text-ink focus:opacity-100 focus:ring-2 focus:ring-moss/40 group-hover:opacity-100"
-                title="复制"
-                aria-label="复制"
-              >
-                <Copy className="h-4 w-4" aria-hidden="true" />
-              </button>
-            )}
+            <div className="flex shrink-0 items-center gap-2">
+              {message.cached && (
+                <span className="inline-flex items-center gap-1 rounded bg-moss/15 px-2 py-1 text-xs font-semibold text-moss">
+                  <Zap className="h-3 w-3" aria-hidden="true" />
+                  缓存命中
+                </span>
+              )}
+              {!isUser && message.status !== "streaming" && (
+                <button
+                  type="button"
+                  onClick={copy}
+                  className="rounded-full p-1.5 text-ink/45 opacity-0 outline-none transition hover:bg-ink/5 hover:text-ink focus:opacity-100 focus:ring-2 focus:ring-moss/40 group-hover:opacity-100"
+                  title="复制"
+                  aria-label="复制"
+                >
+                  <Copy className="h-4 w-4" aria-hidden="true" />
+                </button>
+              )}
+            </div>
           </div>
 
           {message.error && (
@@ -54,7 +62,7 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
             </div>
           )}
 
-          {!isUser && <StepRail steps={message.steps} />}
+          {!isUser && !message.cached && <StepRail steps={message.steps} />}
           {!isUser && message.result !== undefined && <ResultTable data={message.result} />}
 
           <div

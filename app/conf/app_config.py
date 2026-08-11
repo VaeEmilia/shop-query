@@ -8,6 +8,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 from dotenv import load_dotenv
 from omegaconf import OmegaConf
@@ -79,6 +80,18 @@ class ESConfig:
 
 
 @dataclass
+class RedisConfig:
+    """Redis 连接与缓存策略配置"""
+
+    host: str
+    port: int
+    db: int
+    password: Optional[str] = None
+    ttl: int = 86400
+    similarity_threshold: float = 0.92
+
+
+@dataclass
 class LLMConfig:
     """大模型调用配置"""
 
@@ -97,6 +110,7 @@ class AppConfig:
     qdrant: QdrantConfig
     embedding: EmbeddingConfig
     es: ESConfig
+    redis: RedisConfig
     llm: LLMConfig
 
 

@@ -37,4 +37,5 @@ export type ChatMessage = {
   steps?: StepState[];
   result?: unknown;
   error?: string;
+  cached?: boolean;
 };
