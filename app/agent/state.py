@@ -77,3 +77,6 @@ class DataAgentState(TypedDict):
     sql: str  # 生成或校正后的SQL
 
     error: str  # 校验SQL时出现的错误信息
+
+    sql_result: any  # SQL 执行后的查询结果
+    summary: str  # 自然语言总结结果

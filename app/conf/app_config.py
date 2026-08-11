@@ -101,6 +101,22 @@ class LLMConfig:
 
 
 @dataclass
+class SessionConfig:
+    """多轮会话管理配置"""
+
+    max_sessions: int = 20
+    history_turns: int = 4
+    ttl: int = 604800
+
+
+@dataclass
+class SummaryConfig:
+    """查询结果自然语言总结配置"""
+
+    enable: bool = False
+
+
+@dataclass
 class AppConfig:
     """项目级总配置入口"""
 
@@ -112,6 +128,8 @@ class AppConfig:
     es: ESConfig
     redis: RedisConfig
     llm: LLMConfig
+    session: SessionConfig
+    summary: SummaryConfig
 
 
 # 从当前文件位置回到项目根目录，再定位到 conf/app_config.yaml

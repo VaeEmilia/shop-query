@@ -137,7 +137,6 @@ export default function App() {
           if (message.id !== assistantId) return message;
 
           if (event.type === "progress") {
-            // 缓存命中的特殊文案
             const isCacheHit = event.step === "cache_hit";
             const content =
               event.status === "running"
@@ -157,9 +156,35 @@ export default function App() {
           if (event.type === "result") {
             return {
               ...message,
-              status: "done",
+              status: message.status,
               content: summarizeResult(event.data),
               result: event.data,
+            };
+          }
+
+          if (event.type === "summary") {
+            if (event.status === "start") {
+              return { ...message, summary: "", summaryStreaming: true };
+            }
+            if (event.status === "streaming") {
+              return {
+                ...message,
+                summary: (message.summary ?? "") + event.chunk,
+                summaryStreaming: true,
+              };
+            }
+            if (event.status === "done") {
+              return {
+                ...message,
+                summary: event.text,
+                summaryStreaming: false,
+                status: "done",
+              };
+            }
+            return {
+              ...message,
+              summaryStreaming: false,
+              status: message.result !== undefined ? "done" : message.status,
             };
           }
 
@@ -176,11 +201,18 @@ export default function App() {
     try {
       await streamQuery(query, { signal: controller.signal, onEvent });
       setMessages((current) =>
-        current.map((message) =>
-          message.id === assistantId && message.status === "streaming"
-            ? { ...message, status: "done", content: "流程已结束，后端未返回查询结果。" }
-            : message,
-        ),
+        current.map((message) => {
+          if (message.id !== assistantId) return message;
+          if (message.status !== "streaming") return message;
+          if (message.result !== undefined) {
+            return { ...message, status: "done", summaryStreaming: false };
+          }
+          return {
+            ...message,
+            status: "done",
+            content: "流程已结束，后端未返回查询结果。",
+          };
+        }),
       );
     } catch (error) {
       const isAbort = error instanceof DOMException && error.name === "AbortError";

@@ -13,6 +13,7 @@ export type ProgressEvent = {
 export type ResultEvent = {
   type: "result";
   data: unknown;
+  sql?: string;
 };
 
 export type ErrorEvent = {
@@ -20,7 +21,16 @@ export type ErrorEvent = {
   message: string;
 };
 
-export type AgentEvent = ProgressEvent | ResultEvent | ErrorEvent;
+/**
+ * 自然语言总结 SSE 事件
+ */
+export type SummaryEvent =
+  | { type: "summary"; status: "start" }
+  | { type: "summary"; status: "streaming"; chunk: string }
+  | { type: "summary"; status: "done"; text: string }
+  | { type: "summary"; status: "error"; message?: string };
+
+export type AgentEvent = ProgressEvent | ResultEvent | ErrorEvent | SummaryEvent;
 
 export type StepState = {
   step: string;
@@ -38,4 +48,6 @@ export type ChatMessage = {
   result?: unknown;
   error?: string;
   cached?: boolean;
+  summary?: string;
+  summaryStreaming?: boolean;
 };

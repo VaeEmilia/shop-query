@@ -53,3 +53,7 @@ llm:
   api_key: ${oc.env:LLM_API_KEY}
 #  base_url: https://api.siliconflow.cn/v1
   base_url: https://api.deepseek.com
+
+# 查询结果自然语言总结开关
+summary:
+  enable: true
