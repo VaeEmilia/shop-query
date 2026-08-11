@@ -153,12 +153,9 @@ class AppConfig:
     es: ESConfig
     redis: RedisConfig
     llm: LLMConfig
-<<<<<<< HEAD
     session: SessionConfig
     summary: SummaryConfig
-=======
     sql_safety: SqlSafetyConfig = field(default_factory=SqlSafetyConfig)
->>>>>>> feature/sql-safety
 
 
 # 从当前文件位置回到项目根目录，再定位到 conf/app_config.yaml
